@@ -37,7 +37,7 @@ async function analyzeChildPhotos(photoBuffers) {
           ...imageContents,
           {
             type: 'text',
-            text: `Analyze these photos of a child and extract their physical traits for use in AI image generation prompts.
+            text: `Analyze these photos of a child and extract their physical traits for illustration purposes.
 
 Respond ONLY with a valid JSON object, no markdown, no explanation:
 {
