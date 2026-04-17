@@ -1,302 +1,43 @@
-// src/routes/books.js
-// ─────────────────────────────────────────────────────────────
-// Endpoints principales del flujo de creación de cuentos.
-//
-// POST /api/books/session          → Crear sesión nueva
-// POST /api/books/analyze          → Subir fotos + analizar rasgos
-// POST /api/books/preview          → Generar preview (4 páginas)
-// GET  /api/books/session/:id      → Estado de la sesión
-// POST /api/books/generate-full    → Generar libro completo (tras pago)
-// POST /api/books/webhook/shopify  → Webhook de Shopify (pago confirmado)
-// ─────────────────────────────────────────────────────────────
-
-const express = require('express');
-const multer  = require('multer');
-const crypto  = require('crypto');
-const router  = express.Router();
-
-const { analyzeChildPhotos }          = require('../services/photoAnalysis');
-const { generatePages, upscaleForPrint } = require('../services/imageGeneration');
-const { generateBookPDF }             = require('../services/pdfGenerator');
-const {
-  createSession, updateSession, getSession,
-  uploadChildPhotos, saveGeneratedImage, savePDF, deleteChildPhotos,
-} = require('../services/storage');
-const { BOOKS } = require('../../config/books');
-
-// Multer en memoria — máx 4 fotos, 10MB cada una
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024, files: 4 },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('image/')) cb(null, true);
-    else cb(new Error('Solo se aceptan imágenes'));
+const BOOKS = {
+  selva_acuarela: {
+    id: 'selva_acuarela',
+    title: '[NOMBRE] y la Selva Magica',
+    style: 'watercolor',
+    loraKey: 'selva_acuarela',
+    ageRange: '2-6',
+    previewPages: [1, 3, 5, 8],
+    stylePrompt: [
+      'children book watercolor illustration',
+      'soft hand-painted textures',
+      'warm golden palette',
+      'white paper grain visible',
+      'clean white border',
+      'gentle brush strokes',
+      'no photorealism',
+      'no 3d render',
+      'storybook art',
+    ].join(', '),
+    negativePrompt: [
+      'realistic', 'photograph', '3d render', 'cgi', 'ugly',
+      'deformed', 'extra limbs', 'blurry', 'text', 'watermark',
+      'logo', 'signature', 'inconsistent style', 'dark', 'scary',
+      'adult content', 'violence',
+    ].join(', '),
+    pages: [
+      { num: 1, scene: 'portada', seed: 42001, text: '[NOMBRE] y la Selva Magica', promptScene: 'brave child explorer [CHILD_DESC] wearing khaki explorer vest and red boots, standing confidently at the edge of a magical jungle, giant colorful tropical flowers, toucans and butterflies surrounding the child, warm golden light filtering through trees, sense of wonder and adventure' },
+      { num: 2, scene: 'la_mochila', seed: 42002, text: 'Una manana, [NOMBRE] encontro en su cuarto una mochila verde con una nota.', promptScene: 'child [CHILD_DESC] sitting on bedroom floor, holding a magical glowing green backpack with a small note attached, cozy warm bedroom, morning light, toys scattered around, surprised and delighted expression' },
+      { num: 3, scene: 'la_selva_aparece', seed: 42003, text: 'Al ponerse la mochila, zas! Su habitacion desaparecio y [NOMBRE] se encontro en medio de una selva enorme y colorida.', promptScene: 'child [CHILD_DESC] wearing green backpack, surrounded by magical swirling transformation, bedroom dissolving into lush jungle, giant tropical leaves, fireflies, magical sparkles, sense of wonder and excitement' },
+      { num: 4, scene: 'leo_leopardo', seed: 42004, text: 'Un leopardo pequeno llamado Leo lloraba bajo un arbol.', promptScene: 'child [CHILD_DESC] kneeling gently next to a small crying baby leopard sitting under a jungle tree, child carefully helping remove a thorn from the leopard paw, warm afternoon jungle light, lush green leaves, tender and caring mood' },
+      { num: 5, scene: 'mia_monita', seed: 42005, text: 'Mas adelante, Mia la monita estaba atrapada en una rama muy alta.', promptScene: 'child [CHILD_DESC] standing below a tall jungle tree, holding a rope, helping a small scared monkey safely descend from a high branch, dappled sunlight through jungle canopy, friendly determined expression' },
+      { num: 6, scene: 'el_rio', seed: 42006, text: 'De repente, un rio enorme les corto el camino.', promptScene: 'child [CHILD_DESC] standing at the edge of a wide sparkling jungle river looking thoughtful and brave, baby leopard and small monkey standing beside the child looking nervous, golden hour light reflecting on water' },
+      { num: 7, scene: 'el_puente', seed: 42007, text: '[NOMBRE] tuvo una idea: usar las lianas para hacer un puente.', promptScene: 'child [CHILD_DESC] working together with a baby leopard and small monkey to build a liana vine bridge over a jungle river, all three characters actively helping, joyful teamwork scene, bright warm colors, tropical setting' },
+      { num: 8, scene: 'al_otro_lado', seed: 42008, text: 'Los tres cruzaron el rio bailando de alegria.', promptScene: 'child [CHILD_DESC] jumping with arms raised in celebration in a beautiful jungle clearing full of colorful wildflowers, baby leopard and monkey jumping alongside, all three celebrating together, radiant warm sunset light, joyful and triumphant mood' },
+      { num: 9, scene: 'la_fiesta', seed: 42009, text: 'Todos los animales de la selva llegaron a celebrar.', promptScene: 'child [CHILD_DESC] at the center of a joyful jungle celebration surrounded by many friendly animals, elephants, toucans, turtles, butterflies and monkeys all dancing and celebrating around the child, magical festive jungle atmosphere, fireflies glowing' },
+      { num: 10, scene: 'el_regalo', seed: 42010, text: 'Leo le regalo una pluma de tucan. Mia le dio una flor magica.', promptScene: 'child [CHILD_DESC] receiving a glowing toucan feather from baby leopard and a magical flower from monkey, face full of gratitude and love, warm jungle twilight, magical glow on the gifts, emotional and tender scene' },
+      { num: 11, scene: 'camino_a_casa', seed: 42011, text: 'La mochila brillo de nuevo. Era hora de volver.', promptScene: 'child [CHILD_DESC] giving a big warm hug to baby leopard and monkey, green backpack glowing softly, magical transformation beginning, bittersweet farewell scene, warm jungle sunset, love and friendship' },
+      { num: 12, scene: 'de_vuelta', seed: 42012, text: '[NOMBRE] aparecio de nuevo en su cuarto. Porque los exploradores valientes nunca paran de sonar.', promptScene: 'child [CHILD_DESC] tucked in bed in cozy bedroom, holding a toucan feather and magical flower, smiling peacefully drifting off to sleep, stars visible through bedroom window, small jungle animals visible in dream cloud above, warm nighttime light, peaceful and magical ending' },
+    ],
   },
-});
+};
 
-// ── GET /api/books ────────────────────────────────────────────
-// Lista los cuentos disponibles
-router.get('/', (req, res) => {
-  const books = Object.values(BOOKS).map(b => ({
-    id: b.id,
-    title: b.title,
-    style: b.style,
-    ageRange: b.ageRange,
-    pageCount: b.pages.length,
-  }));
-  res.json({ books });
-});
-
-// ── POST /api/books/session ───────────────────────────────────
-// Paso 1: Crear sesión antes de subir fotos
-router.post('/session', async (req, res) => {
-  try {
-    const { bookId, childName, childAge, gender } = req.body;
-
-    if (!bookId || !childName) {
-      return res.status(400).json({ error: 'bookId y childName son obligatorios' });
-    }
-
-    if (!BOOKS[bookId]) {
-      return res.status(404).json({ error: `Libro no encontrado: ${bookId}` });
-    }
-
-    const sessionId = await createSession({ bookId, childName: childName.trim(), childAge, gender });
-
-    res.json({ sessionId, status: 'pending' });
-  } catch (err) {
-    console.error('Error creating session:', err);
-    res.status(500).json({ error: 'Error creando sesión' });
-  }
-});
-
-// ── POST /api/books/analyze ───────────────────────────────────
-// Paso 2: Subir fotos del niño y analizar sus rasgos con Claude Vision
-router.post('/analyze', upload.array('photos', 4), async (req, res) => {
-  try {
-    const { sessionId } = req.body;
-    const files = req.files;
-
-    if (!sessionId) return res.status(400).json({ error: 'sessionId requerido' });
-    if (!files || files.length < 2) return res.status(400).json({ error: 'Se necesitan mínimo 2 fotos' });
-
-    const session = await getSession(sessionId);
-    await updateSession(sessionId, { status: 'analyzing' });
-
-    // 1. Subir fotos originales a Supabase
-    const photoBuffers = files.map(f => f.buffer);
-    const photoUrls = await uploadChildPhotos(sessionId, photoBuffers);
-
-    // 2. Analizar rasgos con Claude Vision
-    const traits = await analyzeChildPhotos(photoBuffers);
-
-    // 3. Guardar traits en la sesión
-    await updateSession(sessionId, {
-      traits: JSON.stringify(traits),
-      photo_urls: JSON.stringify(photoUrls),
-      face_image_url: photoUrls[0], // primera foto como referencia para IP-Adapter
-      status: 'analyzed',
-    });
-
-    res.json({
-      sessionId,
-      traits,
-      status: 'analyzed',
-    });
-  } catch (err) {
-    console.error('Error analyzing photos:', err);
-    res.status(500).json({ error: 'Error analizando las fotos' });
-  }
-});
-
-// ── POST /api/books/preview ───────────────────────────────────
-// Paso 3: Generar las páginas de preview (gratis, antes del pago)
-router.post('/preview', async (req, res) => {
-  try {
-    const { sessionId } = req.body;
-    if (!sessionId) return res.status(400).json({ error: 'sessionId requerido' });
-
-    const session = await getSession(sessionId);
-    if (!session) return res.status(404).json({ error: 'Sesión no encontrada' });
-
-    const book = BOOKS[session.book_id];
-    const traits = JSON.parse(session.traits || '{}');
-
-    await updateSession(sessionId, { status: 'generating_preview' });
-
-    // Generar solo las páginas de preview
-    const generatedPages = await generatePages({
-      bookId: session.book_id,
-      pageNums: book.previewPages,
-      childDesc: traits.childDesc,
-      childName: session.child_name,
-      faceImageUrl: session.face_image_url,
-      concurrency: 2, // menos concurrencia para preview
-    });
-
-    // Guardar imágenes en Supabase (URLs permanentes)
-    const savedPages = await Promise.all(
-      generatedPages.map(async p => {
-        if (!p.imageUrl) return p;
-        const permanentUrl = await saveGeneratedImage(sessionId, p.pageNum, p.imageUrl);
-        return { ...p, imageUrl: permanentUrl };
-      })
-    );
-
-    // Eliminar fotos originales tras generar (GDPR)
-    await deleteChildPhotos(sessionId);
-
-    // Preparar respuesta con textos personalizados
-    const pagesWithText = savedPages.map(p => ({
-      pageNum: p.pageNum,
-      imageUrl: p.imageUrl,
-      text: book.pages
-        .find(bp => bp.num === p.pageNum)
-        ?.text.replace(/\[NOMBRE\]/g, session.child_name) || '',
-    }));
-
-    await updateSession(sessionId, {
-      status: 'preview_ready',
-      preview_pages: JSON.stringify(pagesWithText),
-    });
-
-    res.json({
-      sessionId,
-      childName: session.child_name,
-      bookTitle: book.title.replace('[NOMBRE]', session.child_name),
-      traits,
-      pages: pagesWithText,
-      totalPages: book.pages.length,
-      previewPages: book.previewPages,
-      status: 'preview_ready',
-    });
-  } catch (err) {
-    console.error('Error generating preview:', err);
-    res.status(500).json({ error: 'Error generando preview' });
-  }
-});
-
-// ── GET /api/books/session/:id ────────────────────────────────
-// Consultar estado de una sesión (polling desde el frontend)
-router.get('/session/:id', async (req, res) => {
-  try {
-    const session = await getSession(req.params.id);
-    res.json({
-      sessionId: session.id,
-      status: session.status,
-      childName: session.child_name,
-      bookId: session.book_id,
-      traits: session.traits ? JSON.parse(session.traits) : null,
-      previewPages: session.preview_pages ? JSON.parse(session.preview_pages) : null,
-      pdfUrl: session.pdf_url || null,
-    });
-  } catch (err) {
-    res.status(404).json({ error: 'Sesión no encontrada' });
-  }
-});
-
-// ── POST /api/books/webhook/shopify ──────────────────────────
-// Shopify llama aquí cuando se confirma el pago.
-// Inicia la generación completa del libro en background.
-router.post('/webhook/shopify', express.raw({ type: 'application/json' }), async (req, res) => {
-  // Verificar firma del webhook
-  const hmac = req.headers['x-shopify-hmac-sha256'];
-  const hash = crypto
-    .createHmac('sha256', process.env.SHOPIFY_WEBHOOK_SECRET)
-    .update(req.body)
-    .digest('base64');
-
-  if (hash !== hmac) {
-    return res.status(401).json({ error: 'Webhook signature invalid' });
-  }
-
-  res.status(200).send('OK'); // Responder inmediatamente a Shopify
-
-  // Procesar en background
-  try {
-    const order = JSON.parse(req.body.toString());
-    const sessionId = extractSessionIdFromOrder(order);
-
-    if (sessionId) {
-      generateFullBook(sessionId).catch(err => {
-        console.error('Error in background generation:', err);
-      });
-    }
-  } catch (err) {
-    console.error('Error processing Shopify webhook:', err);
-  }
-});
-
-// ── Generación completa del libro (background) ────────────────
-async function generateFullBook(sessionId) {
-  const session = await getSession(sessionId);
-  const book = BOOKS[session.book_id];
-  const traits = JSON.parse(session.traits || '{}');
-
-  await updateSession(sessionId, { status: 'generating_full' });
-
-  // Páginas que ya tenemos del preview
-  const previewPageNums = book.previewPages;
-  const remainingPageNums = book.pages
-    .map(p => p.num)
-    .filter(n => !previewPageNums.includes(n));
-
-  // Generar páginas restantes
-  const newPages = await generatePages({
-    bookId: session.book_id,
-    pageNums: remainingPageNums,
-    childDesc: traits.childDesc,
-    childName: session.child_name,
-    faceImageUrl: session.face_image_url,
-    concurrency: 3,
-  });
-
-  // Upscale TODAS las páginas para impresión (preview + nuevas)
-  const previewPages = JSON.parse(session.preview_pages || '[]');
-  const allPageData = [];
-
-  // Upscale y guardar páginas de preview
-  for (const p of previewPages) {
-    const upscaledUrl = await upscaleForPrint(p.imageUrl);
-    const finalUrl = await saveGeneratedImage(sessionId, p.pageNum, upscaledUrl);
-    allPageData.push({ pageNum: p.pageNum, imageUrl: finalUrl });
-  }
-
-  // Upscale y guardar páginas nuevas
-  for (const p of newPages) {
-    if (!p.imageUrl) continue;
-    const upscaledUrl = await upscaleForPrint(p.imageUrl);
-    const finalUrl = await saveGeneratedImage(sessionId, p.pageNum, upscaledUrl);
-    allPageData.push({ pageNum: p.pageNum, imageUrl: finalUrl });
-  }
-
-  // Generar PDF final
-  const pdfBuffer = await generateBookPDF({
-    childName: session.child_name,
-    bookId: session.book_id,
-    pages: allPageData,
-    bookConfig: book,
-  });
-
-  const pdfUrl = await savePDF(sessionId, pdfBuffer);
-
-  await updateSession(sessionId, {
-    status: 'completed',
-    pdf_url: pdfUrl,
-    completed_at: new Date().toISOString(),
-  });
-
-  console.log(`Book completed for session ${sessionId}: ${pdfUrl}`);
-}
-
-function extractSessionIdFromOrder(order) {
-  // El sessionId se pasa como line_item property en Shopify
-  for (const item of order.line_items || []) {
-    for (const prop of item.properties || []) {
-      if (prop.name === '_session_id') return prop.value;
-    }
-  }
-  return null;
-}
-
-module.exports = router;
+module.exports = { BOOKS };
