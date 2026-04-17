@@ -21,7 +21,7 @@ async function generatePage({ bookId, pageNum, childDesc, childName }) {
     prompt: fullPrompt,
     image_url: book.styleReferenceUrl,
     strength: 0.65,
-    seed: page.seed,
+    seed: Math.floor(Math.random() * 999999),
     num_inference_steps: 28,
     guidance_scale: 3.5,
     image_size: { width: 1024, height: 1024 },
