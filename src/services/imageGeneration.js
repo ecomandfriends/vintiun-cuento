@@ -10,28 +10,26 @@ async function generatePage({ bookId, pageNum, childDesc, childName }) {
   if (!page) throw new Error('Page ' + pageNum + ' not found');
 
   const fullPrompt = [
-    book.stylePrompt,
     page.promptScene.replace('[CHILD_DESC]', childDesc),
     'character named ' + childName,
-    'detailed face, expressive eyes, cute and friendly',
+    'children book illustration, cute child character, rosy cheeks, warm colors, soft lines',
   ].join(', ');
 
-  const loras = getLoras(book.loraKey);
-  console.log('Generating page', pageNum, 'with loras:', JSON.stringify(loras));
+  console.log('Generating page', pageNum, 'with style reference');
 
   const payload = {
     prompt: fullPrompt,
-    negative_prompt: book.negativePrompt,
+    image_url: book.styleReferenceUrl,
+    strength: 0.85,
     seed: page.seed,
     num_inference_steps: 28,
     guidance_scale: 3.5,
     image_size: { width: 1024, height: 1024 },
     num_images: 1,
     enable_safety_checker: false,
-    ...(loras.length > 0 && { loras }),
   };
 
-  const res = await falRequest(`${FAL_BASE}/fal-ai/flux/dev`, payload);
+  const res = await falRequest(`${FAL_BASE}/fal-ai/flux/dev/image-to-image`, payload);
 
   if (!res.images?.[0]?.url) {
     throw new Error('fal.ai returned no image for page ' + pageNum);
@@ -67,17 +65,6 @@ async function upscaleForPrint(imageUrl) {
     return res.image?.url || imageUrl;
   } catch {
     return imageUrl;
-  }
-}
-
-function getLoras(loraKey) {
-  try {
-    const lorasConfig = JSON.parse(process.env.LORAS_CONFIG || '{}');
-    const lora = lorasConfig[loraKey];
-    if (!lora) return [];
-    return [{ path: lora.path, scale: lora.scale }];
-  } catch {
-    return [];
   }
 }
 

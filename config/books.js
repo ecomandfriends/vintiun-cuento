@@ -5,6 +5,7 @@ const BOOKS = {
     style: 'watercolor',
     loraKey: 'selva_acuarela',
     ageRange: '2-6',
+    styleReferenceUrl: 'https://zwknrtqpaonssrnaxadr.supabase.co/storage/v1/object/public/book-pages/Captura%20de%20pantalla%202026-04-17%20a%20las%2014.51.45.png',
     previewPages: [1, 3, 5, 8],
     stylePrompt: [
       'ESTILO_01', 'children book watercolor illustration',
