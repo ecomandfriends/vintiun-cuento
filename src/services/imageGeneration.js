@@ -20,7 +20,7 @@ async function generatePage({ bookId, pageNum, childDesc, childName }) {
   const payload = {
     prompt: fullPrompt,
     image_url: book.styleReferenceUrl,
-    strength: 0.85,
+    strength: 0.65,
     seed: page.seed,
     num_inference_steps: 28,
     guidance_scale: 3.5,
