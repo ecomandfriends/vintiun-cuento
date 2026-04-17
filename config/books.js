@@ -7,7 +7,7 @@ const BOOKS = {
     ageRange: '2-6',
     previewPages: [1, 3, 5, 8],
     stylePrompt: [
-      'children book watercolor illustration',
+      'ESTILO_01', 'children book watercolor illustration',
       'soft hand-painted textures',
       'warm golden palette',
       'white paper grain visible',
