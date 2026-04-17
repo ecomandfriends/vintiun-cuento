@@ -42,7 +42,7 @@ Respond ONLY with a valid JSON object, no markdown, no explanation:
     ],
   });
 
-  const raw = response.content[0].text.trim();
+  const raw = response.content[0].text.trim().replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
   console.log('Claude response:', raw);
 
   try {
