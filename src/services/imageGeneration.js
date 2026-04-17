@@ -2,12 +2,12 @@ const { BOOKS } = require('../../config/books');
 
 const FAL_BASE = 'https://fal.run';
 
-async function generatePage({ bookId, pageNum, childDesc, childName, faceImageUrl }) {
+async function generatePage({ bookId, pageNum, childDesc, childName }) {
   const book = BOOKS[bookId];
   if (!book) throw new Error('Book not found: ' + bookId);
 
   const page = book.pages.find(p => p.num === pageNum);
-  if (!page) throw new Error('Page ' + pageNum + ' not found in book ' + bookId);
+  if (!page) throw new Error('Page ' + pageNum + ' not found');
 
   const fullPrompt = [
     book.stylePrompt,
@@ -16,16 +16,22 @@ async function generatePage({ bookId, pageNum, childDesc, childName, faceImageUr
     'detailed face, expressive eyes, cute and friendly',
   ].join(', ');
 
+  const loras = getLoras(book.loraKey);
+  console.log('Generating page', pageNum, 'with loras:', JSON.stringify(loras));
+
   const payload = {
     prompt: fullPrompt,
     negative_prompt: book.negativePrompt,
     seed: page.seed,
-    num_inference_steps: 4,
+    num_inference_steps: 28,
+    guidance_scale: 3.5,
     image_size: { width: 1024, height: 1024 },
     num_images: 1,
+    enable_safety_checker: false,
+    ...(loras.length > 0 && { loras }),
   };
 
-  const res = await falRequest(`${FAL_BASE}/fal-ai/flux/schnell`, payload);
+  const res = await falRequest(`${FAL_BASE}/fal-ai/flux/dev`, payload);
 
   if (!res.images?.[0]?.url) {
     throw new Error('fal.ai returned no image for page ' + pageNum);
@@ -34,13 +40,13 @@ async function generatePage({ bookId, pageNum, childDesc, childName, faceImageUr
   return { pageNum, imageUrl: res.images[0].url, seed: page.seed };
 }
 
-async function generatePages({ bookId, pageNums, childDesc, childName, faceImageUrl, concurrency = 3 }) {
+async function generatePages({ bookId, pageNums, childDesc, childName, concurrency = 2 }) {
   const results = [];
   for (let i = 0; i < pageNums.length; i += concurrency) {
     const chunk = pageNums.slice(i, i + concurrency);
     const chunkResults = await Promise.all(
       chunk.map(pageNum =>
-        generatePage({ bookId, pageNum, childDesc, childName, faceImageUrl })
+        generatePage({ bookId, pageNum, childDesc, childName })
           .catch(err => {
             console.error('Error generating page ' + pageNum + ':', err.message);
             return { pageNum, imageUrl: null, error: err.message };
@@ -61,6 +67,17 @@ async function upscaleForPrint(imageUrl) {
     return res.image?.url || imageUrl;
   } catch {
     return imageUrl;
+  }
+}
+
+function getLoras(loraKey) {
+  try {
+    const lorasConfig = JSON.parse(process.env.LORAS_CONFIG || '{}');
+    const lora = lorasConfig[loraKey];
+    if (!lora) return [];
+    return [{ path: lora.path, scale: lora.scale }];
+  } catch {
+    return [];
   }
 }
 
