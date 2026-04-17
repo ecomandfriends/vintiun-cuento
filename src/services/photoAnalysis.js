@@ -16,6 +16,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
  * @returns {Promise<ChildTraits>}
  */
 async function analyzeChildPhotos(photoBuffers) {
+  console.log("DEBUG analyze called, photos:", photoBuffers.length);
   // Convertir buffers a base64
   const imageContents = photoBuffers.map((buf, i) => ({
     type: 'image',
