@@ -64,7 +64,7 @@ router.post('/analyze', upload.array('photos', 4), async (req, res) => {
     res.json({ sessionId, traits, status: 'analyzed' });
   } catch (err) {
     console.error('Error analyzing photos:', err);
-    res.status(500).json({ error: 'Error analizando las fotos' });
+    res.status(500).json({ error: 'Error analizando las fotos', detail: err.message });
   }
 });
 
