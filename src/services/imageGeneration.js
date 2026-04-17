@@ -29,7 +29,7 @@ async function generatePage({ bookId, pageNum, childDesc, childName }) {
     enable_safety_checker: false,
   };
 
-  const res = await falRequest(`${FAL_BASE}/fal-ai/flux/dev/image-to-image`, payload);
+  const res = await falRequest(`${FAL_BASE}/fal-ai/flux-pro/v1/redux`, payload);
 
   if (!res.images?.[0]?.url) {
     throw new Error('fal.ai returned no image for page ' + pageNum);
