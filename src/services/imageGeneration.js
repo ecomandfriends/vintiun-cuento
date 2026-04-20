@@ -13,29 +13,25 @@ async function generatePage({ bookId, pageNum, childDesc, childName }) {
     'ESTILO_01',
     page.promptScene.replace('[CHILD_DESC]', childDesc),
     'character named ' + childName,
-    'children book illustration, cute child character, rosy cheeks, warm colors, soft lines',
-    'no garden, no sunflowers, no planting',
+    'children book illustration, cute child character, rosy cheeks, warm colors, soft lines, consistent character design',
   ].join(', ');
 
-  console.log('Generating page', pageNum, 'prompt:', fullPrompt.substring(0, 100));
-
   const loras = getLoras(book.loraKey);
+  console.log('Generating page', pageNum, '| loras:', loras.length, '| prompt:', fullPrompt.substring(0, 80));
 
   const payload = {
     prompt: fullPrompt,
-    negative_prompt: book.negativePrompt + ', garden, sunflowers, planting, digging, flowers bed',
-    image_url: book.styleReferenceUrl,
-    strength: 0.35,
+    negative_prompt: book.negativePrompt,
     seed: page.seed,
     num_inference_steps: 28,
-    guidance_scale: 4.5,
+    guidance_scale: 3.5,
     image_size: { width: 1024, height: 1024 },
     num_images: 1,
     enable_safety_checker: false,
     ...(loras.length > 0 && { loras }),
   };
 
-  const res = await falRequest(`${FAL_BASE}/fal-ai/flux-pro/v1/redux`, payload);
+  const res = await falRequest(`${FAL_BASE}/fal-ai/flux/dev`, payload);
 
   if (!res.images?.[0]?.url) {
     throw new Error('fal.ai returned no image for page ' + pageNum);
