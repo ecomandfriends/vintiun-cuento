@@ -10,23 +10,29 @@ async function generatePage({ bookId, pageNum, childDesc, childName }) {
   if (!page) throw new Error('Page ' + pageNum + ' not found');
 
   const fullPrompt = [
+    'ESTILO_01',
     page.promptScene.replace('[CHILD_DESC]', childDesc),
     'character named ' + childName,
     'children book illustration, cute child character, rosy cheeks, warm colors, soft lines',
+    'no garden, no sunflowers, no planting',
   ].join(', ');
 
-  console.log('Generating page', pageNum, 'with style reference');
+  console.log('Generating page', pageNum, 'prompt:', fullPrompt.substring(0, 100));
+
+  const loras = getLoras(book.loraKey);
 
   const payload = {
     prompt: fullPrompt,
+    negative_prompt: book.negativePrompt + ', garden, sunflowers, planting, digging, flowers bed',
     image_url: book.styleReferenceUrl,
-    strength: 0.65,
-    seed: Math.floor(Math.random() * 999999),
+    strength: 0.35,
+    seed: page.seed,
     num_inference_steps: 28,
-    guidance_scale: 3.5,
+    guidance_scale: 7.5,
     image_size: { width: 1024, height: 1024 },
     num_images: 1,
     enable_safety_checker: false,
+    ...(loras.length > 0 && { loras }),
   };
 
   const res = await falRequest(`${FAL_BASE}/fal-ai/flux-pro/v1/redux`, payload);
@@ -65,6 +71,17 @@ async function upscaleForPrint(imageUrl) {
     return res.image?.url || imageUrl;
   } catch {
     return imageUrl;
+  }
+}
+
+function getLoras(loraKey) {
+  try {
+    const lorasConfig = JSON.parse(process.env.LORAS_CONFIG || '{}');
+    const lora = lorasConfig[loraKey];
+    if (!lora) return [];
+    return [{ path: lora.path, scale: lora.scale }];
+  } catch {
+    return [];
   }
 }
 
