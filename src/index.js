@@ -21,6 +21,8 @@ app.use(cors({
     `https://${process.env.SHOPIFY_STORE_DOMAIN}`,
     'http://localhost:3000',
     'http://localhost:5500',
+    'https://www.vintiun.com',
+    'https://vintiun.com',
   ],
   credentials: true,
 }));
