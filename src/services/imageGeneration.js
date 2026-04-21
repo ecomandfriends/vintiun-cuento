@@ -9,18 +9,14 @@ async function generatePage({ bookId, pageNum, childDesc, childName }) {
   const page = book.pages.find(p => p.num === pageNum);
   if (!page) throw new Error('Page ' + pageNum + ' not found');
 
-  const fullPrompt = [
-    'ESTILO_01',
-    page.promptScene.replace('[CHILD_DESC]', childDesc),
-    'named ' + childName,
-    'children picture book illustration, vibrant colors, bold outlines, no text',
-  ].join(', ');
+  // Exactamente como en fal.ai playground que funcionó
+  const fullPrompt = 'ESTILO_01, ' + page.promptScene.replace('[CHILD_DESC]', childDesc) + ', named ' + childName + ', children picture book illustration, vibrant colors, bold outlines, no text';
 
-  console.log('Generating page', pageNum, '| prompt:', fullPrompt.substring(0, 100));
+  console.log('Generating page', pageNum, '| prompt:', fullPrompt.substring(0, 120));
 
   const payload = {
     prompt: fullPrompt,
-    negative_prompt: book.negativePrompt,
+    negative_prompt: 'realistic, photo, 3d render, ugly, text, watermark, blurry, dark, scary, adult content',
     loras: [{ path: 'https://v3b.fal.media/files/b/0a969e5d/5N4qPnpIGHkzao7nvWYdM_pytorch_lora_weights.safetensors', scale: 0.8 }],
     seed: page.seed,
     num_inference_steps: 28,
@@ -59,32 +55,19 @@ async function generatePages({ bookId, pageNums, childDesc, childName, concurren
 
 async function upscaleForPrint(imageUrl) {
   try {
-    const res = await falRequest(`${FAL_BASE}/fal-ai/esrgan`, {
-      image_url: imageUrl,
-      scale: 2,
-    });
+    const res = await falRequest(`${FAL_BASE}/fal-ai/esrgan`, { image_url: imageUrl, scale: 2 });
     return res.image?.url || imageUrl;
-  } catch {
-    return imageUrl;
-  }
+  } catch { return imageUrl; }
 }
 
 async function falRequest(url, payload) {
   console.log('fal.ai request to:', url);
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Authorization': 'Key ' + process.env.FAL_API_KEY,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Authorization': 'Key ' + process.env.FAL_API_KEY, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error('fal.ai error ' + res.status + ': ' + err);
-  }
-
+  if (!res.ok) { const err = await res.text(); throw new Error('fal.ai error ' + res.status + ': ' + err); }
   return res.json();
 }
 
