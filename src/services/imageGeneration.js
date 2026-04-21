@@ -10,7 +10,7 @@ async function generatePage({ bookId, pageNum, childDesc, childName }) {
   if (!page) throw new Error('Page ' + pageNum + ' not found');
 
   const fullPrompt = [
-    'ESTILO_01',
+    
     page.promptScene.replace('[CHILD_DESC]', childDesc),
     'character named ' + childName,
     'children book illustration, cute child character, rosy cheeks, warm colors, soft lines, consistent character design',
